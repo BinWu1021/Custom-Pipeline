@@ -57,6 +57,8 @@
      <Compile Include="Assets\MyPipeline.cs" />
      <Compile Include="Assets\MyPipelineAsset.cs" />
      <Compile Include="Assets\RandomColor.cs" />
+     <None Include="Assets\ShaderLibrary\Lit.hlsl" />
+     <None Include="Assets\Shader\Lit.shader" />
      <None Include="Assets\Shader\Unlit.shader" />
      <None Include="Assets\ShaderLibrary\Unlit.hlsl" />
  <Reference Include="Unity.RenderPipelines.Core.Editor">
