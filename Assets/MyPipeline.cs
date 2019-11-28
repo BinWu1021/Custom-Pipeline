@@ -6,6 +6,7 @@ public class MyPipeline : RenderPipeline
 {
     public MyPipeline(bool dynamicBatching, bool instancing)
     {
+        GraphicsSettings.lightsUseLinearIntensity = true;
         this.enableDynamicBatching = dynamicBatching;
         this.enableGPUInstancing = instancing;
     }
@@ -23,8 +24,19 @@ public class MyPipeline : RenderPipeline
     bool enableDynamicBatching;
     bool enableGPUInstancing;
     CullResults cull;
-    CommandBuffer clearBuffer = new CommandBuffer() { name = "Render Camera"} ;
+    CommandBuffer cameraBuffer = new CommandBuffer() { name = "Render Camera"} ;
     Material errorMaterial;
+
+
+    // Define Light Variables
+    const int kMaxVisibleLights = 4;
+
+    static int visibleLightColorsID = Shader.PropertyToID("_VisibleLightColors");
+    static int visibleLightDirectionsID = Shader.PropertyToID("_VisibleLightDirections");
+
+    Vector4[] visibleLightColors = new Vector4[kMaxVisibleLights];
+    Vector4[] visibleLightDirections = new Vector4[kMaxVisibleLights];
+
     void Render(ScriptableRenderContext context, Camera camera)
     {
         // Culling
@@ -46,10 +58,17 @@ public class MyPipeline : RenderPipeline
         context.SetupCameraProperties(camera);
 
         // Clear Target
-        clearBuffer.ClearRenderTarget(true, false, Color.clear);
-        clearBuffer.BeginSample("Render Camera");
-        context.ExecuteCommandBuffer(clearBuffer);
-        clearBuffer.Clear();
+        cameraBuffer.ClearRenderTarget(true, false, Color.clear);
+        
+        // Configer Lights 
+        ConfigureLights();
+
+        cameraBuffer.BeginSample("Render Camera");
+        // Set Lights array
+        cameraBuffer.SetGlobalVectorArray(visibleLightColorsID, visibleLightColors);
+        cameraBuffer.SetGlobalVectorArray(visibleLightDirectionsID, visibleLightDirections);
+        context.ExecuteCommandBuffer(cameraBuffer);
+        cameraBuffer.Clear();
 
         // Draw Object
         var drawSettings = new DrawRendererSettings(camera, new ShaderPassName("SRPDefaultUnlit"));
@@ -75,11 +94,31 @@ public class MyPipeline : RenderPipeline
         filterSettings.renderQueueRange = RenderQueueRange.transparent;
         context.DrawRenderers(cull.visibleRenderers, ref drawSettings, filterSettings);
 
-        clearBuffer.EndSample("Render Camera");
-		context.ExecuteCommandBuffer(clearBuffer);
-		clearBuffer.Clear();
+        cameraBuffer.EndSample("Render Camera");
+		context.ExecuteCommandBuffer(cameraBuffer);
+		cameraBuffer.Clear();
 
         context.Submit();
+    }
+
+    void ConfigureLights()
+    {
+        for (int i = 0; i < kMaxVisibleLights; i++)
+        {
+            if (this.cull.visibleLights.Count <= i)
+            {
+                visibleLightColors[i] = Color.clear;
+                continue;
+            }
+
+            var visibleLight = this.cull.visibleLights[i];
+            visibleLightColors[i] = visibleLight.finalColor;
+            var lightDir = visibleLight.localToWorld.GetColumn(2);
+            lightDir.x = -lightDir.x;
+            lightDir.y = -lightDir.y;
+            lightDir.z = -lightDir.z;
+            visibleLightDirections[i] = lightDir;
+        }
     }
 
     void DrawDefaultPipeline(ScriptableRenderContext context, Camera camera)
