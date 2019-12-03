@@ -17,15 +17,17 @@ CBUFFER_END
 
 CBUFFER_START(_LightBuffer)
     float4 _VisibleLightColors[MAX_VISIBLE_LIGHTS];
-    float4 _VisibleLightDirections[MAX_VISIBLE_LIGHTS];
+    float4 _VisibleLightDirectionsOrPositions[MAX_VISIBLE_LIGHTS];
 CBUFFER_END
 
-float3 DiffuseLight(int index, float3 normal)
+float3 DiffuseLight(int index, float3 normal, float3 worldPos)
 {
     float3 lightColor = _VisibleLightColors[index];
-    float3 lightDirection = _VisibleLightDirections[index];
+    float3 lightVector = _VisibleLightDirectionsOrPositions[index].xyz - worldPos.xyz * _VisibleLightDirectionsOrPositions[index].w;
+    float3 lightDirection = normalize(lightVector);
     float ndotl = saturate(dot(normal, lightDirection));
-    return lightColor * ndotl;
+    float distanceSqr = 1 / max(dot(lightVector, lightVector), 0.00001);
+    return lightColor * ndotl * distanceSqr;
 }
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
@@ -45,6 +47,7 @@ struct VertexOutput
 {
     float4 clipPos : SV_POSITION;
     float3 normal : TEXCOORD0;
+    float3 worldPos : TEXCOORD1;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -58,6 +61,7 @@ VertexOutput LitPassVertex(VertexInput input)
     float4 worldPos = mul(UNITY_MATRIX_M, float4(input.pos.xyz, 1));
     output.clipPos = mul(unity_MatrixVP, worldPos);
     output.normal = mul((float3x3)UNITY_MATRIX_M, input.normal);
+    output.worldPos = worldPos;
     return output;
 }
 
@@ -71,7 +75,7 @@ float4 LitPassFragment (VertexOutput input) : SV_TARGET
 
     for (int i = 0; i < MAX_VISIBLE_LIGHTS; i++)
     {
-        diffuseLight += DiffuseLight(i, input.normal);
+        diffuseLight += DiffuseLight(i, input.normal, input.worldPos);
     }
 
     float3 color = albedo * diffuseLight;

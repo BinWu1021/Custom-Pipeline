@@ -24,7 +24,7 @@ public class MyPipeline : RenderPipeline
     bool enableDynamicBatching;
     bool enableGPUInstancing;
     CullResults cull;
-    CommandBuffer cameraBuffer = new CommandBuffer() { name = "Render Camera"} ;
+    CommandBuffer cameraBuffer = new CommandBuffer() { name = "Render Camera" };
     Material errorMaterial;
 
 
@@ -32,10 +32,10 @@ public class MyPipeline : RenderPipeline
     const int kMaxVisibleLights = 4;
 
     static int visibleLightColorsID = Shader.PropertyToID("_VisibleLightColors");
-    static int visibleLightDirectionsID = Shader.PropertyToID("_VisibleLightDirections");
+    static int visibleLightDirectionsOrPositionsID = Shader.PropertyToID("_VisibleLightDirectionsOrPositions");
 
     Vector4[] visibleLightColors = new Vector4[kMaxVisibleLights];
-    Vector4[] visibleLightDirections = new Vector4[kMaxVisibleLights];
+    Vector4[] visibleLightDirectionsOrPositions = new Vector4[kMaxVisibleLights];
 
     void Render(ScriptableRenderContext context, Camera camera)
     {
@@ -59,14 +59,14 @@ public class MyPipeline : RenderPipeline
 
         // Clear Target
         cameraBuffer.ClearRenderTarget(true, false, Color.clear);
-        
+
         // Configer Lights 
         ConfigureLights();
 
         cameraBuffer.BeginSample("Render Camera");
         // Set Lights array
         cameraBuffer.SetGlobalVectorArray(visibleLightColorsID, visibleLightColors);
-        cameraBuffer.SetGlobalVectorArray(visibleLightDirectionsID, visibleLightDirections);
+        cameraBuffer.SetGlobalVectorArray(visibleLightDirectionsOrPositionsID, visibleLightDirectionsOrPositions);
         context.ExecuteCommandBuffer(cameraBuffer);
         cameraBuffer.Clear();
 
@@ -76,7 +76,7 @@ public class MyPipeline : RenderPipeline
 
         // Enable Dynamic batching
         if (enableDynamicBatching)
-            drawSettings.flags = DrawRendererFlags.EnableDynamicBatching; 
+            drawSettings.flags = DrawRendererFlags.EnableDynamicBatching;
         if (enableGPUInstancing)
             drawSettings.flags |= DrawRendererFlags.EnableInstancing;
 
@@ -95,8 +95,8 @@ public class MyPipeline : RenderPipeline
         context.DrawRenderers(cull.visibleRenderers, ref drawSettings, filterSettings);
 
         cameraBuffer.EndSample("Render Camera");
-		context.ExecuteCommandBuffer(cameraBuffer);
-		cameraBuffer.Clear();
+        context.ExecuteCommandBuffer(cameraBuffer);
+        cameraBuffer.Clear();
 
         context.Submit();
     }
@@ -113,11 +113,19 @@ public class MyPipeline : RenderPipeline
 
             var visibleLight = this.cull.visibleLights[i];
             visibleLightColors[i] = visibleLight.finalColor;
-            var lightDir = visibleLight.localToWorld.GetColumn(2);
-            lightDir.x = -lightDir.x;
-            lightDir.y = -lightDir.y;
-            lightDir.z = -lightDir.z;
-            visibleLightDirections[i] = lightDir;
+
+            if (visibleLight.lightType == LightType.Directional)
+            {
+                var lightDir = visibleLight.localToWorld.GetColumn(2);
+                lightDir.x = -lightDir.x;
+                lightDir.y = -lightDir.y;
+                lightDir.z = -lightDir.z;
+                visibleLightDirectionsOrPositions[i] = lightDir;
+            }
+            else if (visibleLight.lightType == LightType.Point)
+            {
+                visibleLightDirectionsOrPositions[i] = visibleLight.localToWorld.GetColumn(3);
+            }
         }
     }
 
