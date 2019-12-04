@@ -18,6 +18,8 @@ CBUFFER_END
 CBUFFER_START(_LightBuffer)
     float4 _VisibleLightColors[MAX_VISIBLE_LIGHTS];
     float4 _VisibleLightDirectionsOrPositions[MAX_VISIBLE_LIGHTS];
+    float4 _VisibleLightAttenuations[MAX_VISIBLE_LIGHTS];
+    float4 _VisibleSpotLightDirections[MAX_VISIBLE_LIGHTS];
 CBUFFER_END
 
 float3 DiffuseLight(int index, float3 normal, float3 worldPos)
@@ -25,9 +27,19 @@ float3 DiffuseLight(int index, float3 normal, float3 worldPos)
     float3 lightColor = _VisibleLightColors[index];
     float3 lightVector = _VisibleLightDirectionsOrPositions[index].xyz - worldPos.xyz * _VisibleLightDirectionsOrPositions[index].w;
     float3 lightDirection = normalize(lightVector);
-    float ndotl = saturate(dot(normal, lightDirection));
-    float distanceSqr = 1 / max(dot(lightVector, lightVector), 0.00001);
-    return lightColor * ndotl * distanceSqr;
+    float ndotl = saturate(dot(normal, lightDirection)); // 
+
+    // range attenuation
+    float4 lightAttenuation = _VisibleLightAttenuations[index];
+    float fadeRange = dot(lightVector, lightVector) * lightAttenuation.x;
+    fadeRange = saturate(1 - fadeRange * fadeRange);
+    fadeRange *= fadeRange;
+
+    // distance attenuation
+    float distanceSqr = max(dot(lightVector, lightVector), 0.00001);
+    float diffuse = ndotl * fadeRange / distanceSqr;
+
+    return lightColor * diffuse;
 }
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/UnityInstancing.hlsl"
