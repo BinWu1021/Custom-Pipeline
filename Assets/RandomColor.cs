@@ -17,7 +17,7 @@ public class RandomColor : MonoBehaviour
 
         foreach(var insColor in insColors)
         {
-            insColor.color = Random.ColorHSV();
+            insColor.color = Random.ColorHSV(); 
         }
     }
 

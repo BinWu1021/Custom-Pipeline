@@ -34,7 +34,7 @@ public class MyPipeline : RenderPipeline
     static int visibleLightColorsID = Shader.PropertyToID("_VisibleLightColors");
     static int visibleLightDirectionsOrPositionsID = Shader.PropertyToID("_VisibleLightDirectionsOrPositions");
     static int visibleLightAttenuationsID = Shader.PropertyToID("_VisibleLightAttenuations");
-    static int visibleSpotLightDirectionsID = Shader.PropertyToID("_VisibleSpotLightDirection");
+    static int visibleSpotLightDirectionsID = Shader.PropertyToID("_VisibleSpotLightDirections");
 
     Vector4[] visibleLightColors = new Vector4[kMaxVisibleLights];
     Vector4[] visibleLightDirectionsOrPositions = new Vector4[kMaxVisibleLights];
@@ -121,6 +121,7 @@ public class MyPipeline : RenderPipeline
             visibleLightColors[i] = visibleLight.finalColor;
 
             Vector4 attenuation = Vector4.zero;
+            attenuation.w = 1;
 
             if (visibleLight.lightType == LightType.Directional)
             {
@@ -130,10 +131,41 @@ public class MyPipeline : RenderPipeline
                 lightDir.z = -lightDir.z;
                 visibleLightDirectionsOrPositions[i] = lightDir;
             }
-            else 
+            else
             {
                 visibleLightDirectionsOrPositions[i] = visibleLight.localToWorld.GetColumn(3);
+                // Cacluate Range Attenuation
                 attenuation.x = 1 / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
+
+                if (visibleLight.lightType == LightType.Spot)
+                {
+                    var lightDir = visibleLight.localToWorld.GetColumn(2);
+                    lightDir.x = -lightDir.x;
+                    lightDir.y = -lightDir.y;
+                    lightDir.z = -lightDir.z;
+                    visibleSpotLightDirections[i] = lightDir;
+
+                    // ---------------------------------------------------------------------------------------------------
+                    //
+                    // tan(ri) = 46/64 * tan(ro)
+                    // ri : half the inner spot angles in radians.
+                    // ro : half the outer spot angles in radians.
+                    // so cos(ri) = cos(arctan(46/64 * tan(ro))) ;
+                    // The angle-based falloff is defined (Ds * Dl - cos(r0)) / (cos(ri) - cos(ro)). 
+                    // Ds * Dl : dot product of the spot direction and light direction.
+                    // So the expression can be simplified to (Ds * Dl)a + b, a = 1 / (cos(ri) - cos(ro)), b = -cos(ro)a;
+                    //
+                    // ---------------------------------------------------------------------------------------------------
+
+                    float outerRad = Mathf.Deg2Rad * 0.5f * visibleLight.spotAngle;
+                    float outerCos = Mathf.Cos(outerRad);
+                    float outerTan = Mathf.Tan(outerRad);
+                    float innerCos = Mathf.Cos(Mathf.Atan(46f/64f * outerTan));
+
+                    attenuation.z = 1 / Mathf.Max((innerCos - outerCos), 0.001f);
+                    attenuation.w = -outerCos * attenuation.z;
+
+                }
             }
 
             visibleLightAttenuations[i] = attenuation;

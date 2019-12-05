@@ -27,17 +27,23 @@ float3 DiffuseLight(int index, float3 normal, float3 worldPos)
     float3 lightColor = _VisibleLightColors[index];
     float3 lightVector = _VisibleLightDirectionsOrPositions[index].xyz - worldPos.xyz * _VisibleLightDirectionsOrPositions[index].w;
     float3 lightDirection = normalize(lightVector);
-    float ndotl = saturate(dot(normal, lightDirection)); // 
+    float ndotl = saturate(dot(normal, lightDirection)); 
+    float4 lightAttenuation = _VisibleLightAttenuations[index];
+    float4 spotDirection = _VisibleSpotLightDirections[index];
 
     // range attenuation
-    float4 lightAttenuation = _VisibleLightAttenuations[index];
     float fadeRange = dot(lightVector, lightVector) * lightAttenuation.x;
     fadeRange = saturate(1 - fadeRange * fadeRange);
     fadeRange *= fadeRange;
 
+    // angle falloff
+    float spotFade = dot(spotDirection, lightDirection);
+    spotFade = saturate(spotFade * lightAttenuation.z +  lightAttenuation.w);
+    spotFade *= spotFade;
+
     // distance attenuation
     float distanceSqr = max(dot(lightVector, lightVector), 0.00001);
-    float diffuse = ndotl * fadeRange / distanceSqr;
+    float diffuse = ndotl * fadeRange * spotFade / distanceSqr;
 
     return lightColor * diffuse;
 }
