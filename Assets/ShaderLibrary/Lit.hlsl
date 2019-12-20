@@ -9,11 +9,13 @@ CBUFFER_END
 
 CBUFFER_START(UnityPerDraw)
     float4x4 unity_ObjectToWorld;
+    float4 unity_LightIndicesOffsetAndCount;   // x : is offset of light indices. y : contains the number of lights affecting the object.
+    float4 unity_4LightIndices0, unity_4LightIndices1;
 CBUFFER_END
 
 #define UNITY_MATRIX_M unity_ObjectToWorld
 
-#define MAX_VISIBLE_LIGHTS 4
+#define MAX_VISIBLE_LIGHTS 16
 
 CBUFFER_START(_LightBuffer)
     float4 _VisibleLightColors[MAX_VISIBLE_LIGHTS];
@@ -21,6 +23,7 @@ CBUFFER_START(_LightBuffer)
     float4 _VisibleLightAttenuations[MAX_VISIBLE_LIGHTS];
     float4 _VisibleSpotLightDirections[MAX_VISIBLE_LIGHTS];
 CBUFFER_END
+
 
 float3 DiffuseLight(int index, float3 normal, float3 worldPos)
 {
@@ -91,9 +94,16 @@ float4 LitPassFragment (VertexOutput input) : SV_TARGET
     //float diffuseLight = saturate(dot(input.normal, float3(0, 1, 0)));
     float3 diffuseLight = 0;
 
-    for (int i = 0; i < MAX_VISIBLE_LIGHTS; i++)
+    for (int i = 0; i < min(unity_LightIndicesOffsetAndCount.y, 4); i++)
     {
-        diffuseLight += DiffuseLight(i, input.normal, input.worldPos);
+        int lightIndex = unity_4LightIndices0[i];
+        diffuseLight += DiffuseLight(lightIndex, input.normal, input.worldPos);
+    }
+
+    for (int i = 4; i < min(unity_LightIndicesOffsetAndCount.y, 8); i++)
+    {
+        int lightIndex = unity_4LightIndices1[i - 4];
+        diffuseLight += DiffuseLight(lightIndex, input.normal, input.worldPos);
     }
 
     float3 color = albedo * diffuseLight;

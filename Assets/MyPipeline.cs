@@ -29,7 +29,7 @@ public class MyPipeline : RenderPipeline
 
 
     // Define Light Variables
-    const int kMaxVisibleLights = 4;
+    const int kMaxVisibleLights = 16;
 
     static int visibleLightColorsID = Shader.PropertyToID("_VisibleLightColors");
     static int visibleLightDirectionsOrPositionsID = Shader.PropertyToID("_VisibleLightDirectionsOrPositions");
@@ -64,7 +64,7 @@ public class MyPipeline : RenderPipeline
         // Clear Target
         cameraBuffer.ClearRenderTarget(true, false, Color.clear);
 
-        // Configer Lights 
+        // Configure Lights 
         ConfigureLights();
 
         cameraBuffer.BeginSample("Render Camera");
@@ -78,6 +78,7 @@ public class MyPipeline : RenderPipeline
 
         // Draw Object
         var drawSettings = new DrawRendererSettings(camera, new ShaderPassName("SRPDefaultUnlit"));
+        drawSettings.rendererConfiguration = RendererConfiguration.PerObjectLightIndices8;
         drawSettings.sorting.flags = SortFlags.CommonOpaque;
 
         // Enable Dynamic batching
@@ -109,14 +110,8 @@ public class MyPipeline : RenderPipeline
 
     void ConfigureLights()
     {
-        for (int i = 0; i < kMaxVisibleLights; i++)
+        for (int i = 0; i < cull.visibleLights.Count; i++)
         {
-            if (this.cull.visibleLights.Count <= i)
-            {
-                visibleLightColors[i] = Color.clear;
-                continue;
-            }
-
             var visibleLight = this.cull.visibleLights[i];
             visibleLightColors[i] = visibleLight.finalColor;
 
