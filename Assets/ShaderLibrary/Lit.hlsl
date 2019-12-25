@@ -69,6 +69,7 @@ struct VertexOutput
     float4 clipPos : SV_POSITION;
     float3 normal : TEXCOORD0;
     float3 worldPos : TEXCOORD1;
+    float3 vertexLighting : TEXCOORD2;
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
@@ -83,6 +84,13 @@ VertexOutput LitPassVertex(VertexInput input)
     output.clipPos = mul(unity_MatrixVP, worldPos);
     output.normal = mul((float3x3)UNITY_MATRIX_M, input.normal);
     output.worldPos = worldPos;
+
+    output.vertexLighting = 0;
+    for (int i = 4; i < min(unity_LightIndicesOffsetAndCount.y, 8); i++)
+    {
+        int lightIndex = unity_4LightIndices1[i - 4];
+        output.vertexLighting += DiffuseLight(lightIndex, output.normal , worldPos);
+    }
     return output;
 }
 
@@ -92,17 +100,11 @@ float4 LitPassFragment (VertexOutput input) : SV_TARGET
     float3 albedo = UNITY_ACCESS_INSTANCED_PROP(PerInstance, _Color);
     input.normal =  normalize(input.normal);
     //float diffuseLight = saturate(dot(input.normal, float3(0, 1, 0)));
-    float3 diffuseLight = 0;
+    float3 diffuseLight = input.vertexLighting;
 
     for (int i = 0; i < min(unity_LightIndicesOffsetAndCount.y, 4); i++)
     {
         int lightIndex = unity_4LightIndices0[i];
-        diffuseLight += DiffuseLight(lightIndex, input.normal, input.worldPos);
-    }
-
-    for (int i = 4; i < min(unity_LightIndicesOffsetAndCount.y, 8); i++)
-    {
-        int lightIndex = unity_4LightIndices1[i - 4];
         diffuseLight += DiffuseLight(lightIndex, input.normal, input.worldPos);
     }
 

@@ -35,6 +35,7 @@ public class MyPipeline : RenderPipeline
     static int visibleLightDirectionsOrPositionsID = Shader.PropertyToID("_VisibleLightDirectionsOrPositions");
     static int visibleLightAttenuationsID = Shader.PropertyToID("_VisibleLightAttenuations");
     static int visibleSpotLightDirectionsID = Shader.PropertyToID("_VisibleSpotLightDirections");
+    static int visibleLightIndicesOffsetAndCountID = Shader.PropertyToID("unity_LightIndicesOffsetAndCount");
 
     Vector4[] visibleLightColors = new Vector4[kMaxVisibleLights];
     Vector4[] visibleLightDirectionsOrPositions = new Vector4[kMaxVisibleLights];
@@ -65,7 +66,14 @@ public class MyPipeline : RenderPipeline
         cameraBuffer.ClearRenderTarget(true, false, Color.clear);
 
         // Configure Lights 
-        ConfigureLights();
+        if (cull.visibleLights.Count > 0)
+        {
+            ConfigureLights();
+        }
+        else
+        {
+            cameraBuffer.SetGlobalVector(visibleLightIndicesOffsetAndCountID, Vector4.zero);
+        }
 
         cameraBuffer.BeginSample("Render Camera");
         // Set Lights array
@@ -78,7 +86,10 @@ public class MyPipeline : RenderPipeline
 
         // Draw Object
         var drawSettings = new DrawRendererSettings(camera, new ShaderPassName("SRPDefaultUnlit"));
-        drawSettings.rendererConfiguration = RendererConfiguration.PerObjectLightIndices8;
+        if (cull.visibleLights.Count > 0)
+        {
+            drawSettings.rendererConfiguration = RendererConfiguration.PerObjectLightIndices8;
+        }
         drawSettings.sorting.flags = SortFlags.CommonOpaque;
 
         // Enable Dynamic batching
@@ -155,7 +166,7 @@ public class MyPipeline : RenderPipeline
                     float outerRad = Mathf.Deg2Rad * 0.5f * visibleLight.spotAngle;
                     float outerCos = Mathf.Cos(outerRad);
                     float outerTan = Mathf.Tan(outerRad);
-                    float innerCos = Mathf.Cos(Mathf.Atan(46f/64f * outerTan));
+                    float innerCos = Mathf.Cos(Mathf.Atan(46f / 64f * outerTan));
 
                     attenuation.z = 1 / Mathf.Max((innerCos - outerCos), 0.001f);
                     attenuation.w = -outerCos * attenuation.z;
@@ -164,6 +175,16 @@ public class MyPipeline : RenderPipeline
             }
 
             visibleLightAttenuations[i] = attenuation;
+        }
+
+        if (cull.visibleLights.Count > kMaxVisibleLights)
+        {
+            int[] lightIndices = cull.GetLightIndexMap();
+            for (int i = kMaxVisibleLights; i < lightIndices.Length; i++)
+            {
+                lightIndices[i] = -1;
+            }
+            cull.SetLightIndexMap(lightIndices);
         }
     }
 
