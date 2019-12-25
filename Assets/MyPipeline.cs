@@ -25,8 +25,10 @@ public class MyPipeline : RenderPipeline
     bool enableGPUInstancing;
     CullResults cull;
     CommandBuffer cameraBuffer = new CommandBuffer() { name = "Render Camera" };
+    CommandBuffer shadowBuffer = new CommandBuffer() { name = "Render Shadow" };
     Material errorMaterial;
 
+    RenderTexture shadowMap = null; 
 
     // Define Light Variables
     const int kMaxVisibleLights = 16;
@@ -59,6 +61,9 @@ public class MyPipeline : RenderPipeline
 #endif
 
         CullResults.Cull(ref cullingParameters, context, ref cull);
+
+        // Render Shadow Map
+        RenderShadow(context);
 
         context.SetupCameraProperties(camera);
 
@@ -117,6 +122,40 @@ public class MyPipeline : RenderPipeline
         cameraBuffer.Clear();
 
         context.Submit();
+
+        if (shadowMap != null)
+        {
+            RenderTexture.ReleaseTemporary(shadowMap);
+            shadowMap = null;
+        }
+    }
+
+    void RenderShadow(ScriptableRenderContext context)
+    {
+        shadowMap = RenderTexture.GetTemporary(512, 512, 16, RenderTextureFormat.Shadowmap);
+        shadowMap.filterMode = FilterMode.Bilinear;
+        shadowMap.wrapMode = TextureWrapMode.Clamp;
+
+        CoreUtils.SetRenderTarget(shadowBuffer, shadowMap, 
+                                RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, ClearFlag.Depth);
+        shadowBuffer.BeginSample("Render Shadow");
+
+        // Set View matrix and projection matrix
+        Matrix4x4 viewMatrix, projMatrix;
+        ShadowSplitData shadowSplitData;
+        this.cull.ComputeSpotShadowMatricesAndCullingPrimitives(0, out viewMatrix, out projMatrix, out shadowSplitData);
+        shadowBuffer.SetViewProjectionMatrices(viewMatrix, projMatrix);
+
+        context.ExecuteCommandBuffer(shadowBuffer);
+        shadowBuffer.Clear();
+
+        // Draw Shadow Casters
+        var shadowSetting = new DrawShadowsSettings(cull, 0);
+        context.DrawShadows(ref shadowSetting);
+
+        shadowBuffer.EndSample("Render Shadow");
+        context.ExecuteCommandBuffer(shadowBuffer);
+        shadowBuffer.Clear();
     }
 
     void ConfigureLights()
