@@ -205,7 +205,7 @@ public class MyPipeline : RenderPipeline
                     float outerRad = Mathf.Deg2Rad * 0.5f * visibleLight.spotAngle;
                     float outerCos = Mathf.Cos(outerRad);
                     float outerTan = Mathf.Tan(outerRad);
-                    float innerCos = Mathf.Cos(Mathf.Atan(46f / 64f * outerTan));
+                    float innerCos = Mathf.Cos(Mathf.Atan((46f / 64f) * outerTan));
 
                     attenuation.z = 1 / Mathf.Max((innerCos - outerCos), 0.001f);
                     attenuation.w = -outerCos * attenuation.z;
