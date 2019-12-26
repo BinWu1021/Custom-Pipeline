@@ -4,11 +4,12 @@ using UnityEngine.Rendering;
 
 public class MyPipeline : RenderPipeline
 {
-    public MyPipeline(bool dynamicBatching, bool instancing)
+    public MyPipeline(bool dynamicBatching, bool instancing, int shadowMapSize)
     {
         GraphicsSettings.lightsUseLinearIntensity = true;
         this.enableDynamicBatching = dynamicBatching;
         this.enableGPUInstancing = instancing;
+        this.shadowMapSize = shadowMapSize;
     }
 
     public override void Render(ScriptableRenderContext renderContext, Camera[] cameras)
@@ -23,12 +24,14 @@ public class MyPipeline : RenderPipeline
 
     bool enableDynamicBatching;
     bool enableGPUInstancing;
+    int shadowMapSize;
+
     CullResults cull;
     CommandBuffer cameraBuffer = new CommandBuffer() { name = "Render Camera" };
     CommandBuffer shadowBuffer = new CommandBuffer() { name = "Render Shadow" };
     Material errorMaterial;
 
-    RenderTexture shadowMap = null; 
+    RenderTexture shadowMap = null;
 
     // Define Light Variables
     const int kMaxVisibleLights = 16;
@@ -38,6 +41,9 @@ public class MyPipeline : RenderPipeline
     static int visibleLightAttenuationsID = Shader.PropertyToID("_VisibleLightAttenuations");
     static int visibleSpotLightDirectionsID = Shader.PropertyToID("_VisibleSpotLightDirections");
     static int visibleLightIndicesOffsetAndCountID = Shader.PropertyToID("unity_LightIndicesOffsetAndCount");
+    static int shadowMapID = Shader.PropertyToID("_ShadowMap");
+    static int worldToShadowMatrixID = Shader.PropertyToID("_WorldToShadowMatrix");
+    static int shadowBiasID = Shader.PropertyToID("_ShadowBias");
 
     Vector4[] visibleLightColors = new Vector4[kMaxVisibleLights];
     Vector4[] visibleLightDirectionsOrPositions = new Vector4[kMaxVisibleLights];
@@ -132,11 +138,11 @@ public class MyPipeline : RenderPipeline
 
     void RenderShadow(ScriptableRenderContext context)
     {
-        shadowMap = RenderTexture.GetTemporary(512, 512, 16, RenderTextureFormat.Shadowmap);
+        shadowMap = RenderTexture.GetTemporary(this.shadowMapSize, this.shadowMapSize, 16, RenderTextureFormat.Shadowmap);
         shadowMap.filterMode = FilterMode.Bilinear;
         shadowMap.wrapMode = TextureWrapMode.Clamp;
 
-        CoreUtils.SetRenderTarget(shadowBuffer, shadowMap, 
+        CoreUtils.SetRenderTarget(shadowBuffer, shadowMap,
                                 RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, ClearFlag.Depth);
         shadowBuffer.BeginSample("Render Shadow");
 
@@ -145,6 +151,7 @@ public class MyPipeline : RenderPipeline
         ShadowSplitData shadowSplitData;
         this.cull.ComputeSpotShadowMatricesAndCullingPrimitives(0, out viewMatrix, out projMatrix, out shadowSplitData);
         shadowBuffer.SetViewProjectionMatrices(viewMatrix, projMatrix);
+        shadowBuffer.SetGlobalFloat(shadowBiasID, cull.visibleLights[0].light.shadowBias);
 
         context.ExecuteCommandBuffer(shadowBuffer);
         shadowBuffer.Clear();
@@ -152,6 +159,23 @@ public class MyPipeline : RenderPipeline
         // Draw Shadow Casters
         var shadowSetting = new DrawShadowsSettings(cull, 0);
         context.DrawShadows(ref shadowSetting);
+
+        // Set Shadow map and shadow space matrix
+        if (SystemInfo.usesReversedZBuffer)
+        {
+            projMatrix.m20 = -projMatrix.m20;
+			projMatrix.m21 = -projMatrix.m21;
+			projMatrix.m22 = -projMatrix.m22;
+			projMatrix.m23 = -projMatrix.m23;
+        }
+
+        Matrix4x4 scaleOffset = Matrix4x4.identity;
+        scaleOffset.m00 = scaleOffset.m11 = scaleOffset.m22 = 0.5f;
+        scaleOffset.m03 = scaleOffset.m13 = scaleOffset.m23 = 0.5f;
+        Matrix4x4 worldToShadowMatrix = scaleOffset * projMatrix * viewMatrix;
+        shadowBuffer.SetGlobalMatrix(worldToShadowMatrixID, worldToShadowMatrix);
+        shadowBuffer.SetGlobalTexture(shadowMapID, shadowMap);
+
 
         shadowBuffer.EndSample("Render Shadow");
         context.ExecuteCommandBuffer(shadowBuffer);
