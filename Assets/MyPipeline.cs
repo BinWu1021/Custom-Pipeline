@@ -44,6 +44,7 @@ public class MyPipeline : RenderPipeline
     static int shadowMapID = Shader.PropertyToID("_ShadowMap");
     static int worldToShadowMatrixID = Shader.PropertyToID("_WorldToShadowMatrix");
     static int shadowBiasID = Shader.PropertyToID("_ShadowBias");
+    static int shadowStrengthID = Shader.PropertyToID("_ShadowStrength");
 
     Vector4[] visibleLightColors = new Vector4[kMaxVisibleLights];
     Vector4[] visibleLightDirectionsOrPositions = new Vector4[kMaxVisibleLights];
@@ -175,6 +176,7 @@ public class MyPipeline : RenderPipeline
         Matrix4x4 worldToShadowMatrix = scaleOffset * projMatrix * viewMatrix;
         shadowBuffer.SetGlobalMatrix(worldToShadowMatrixID, worldToShadowMatrix);
         shadowBuffer.SetGlobalTexture(shadowMapID, shadowMap);
+        shadowBuffer.SetGlobalFloat(shadowStrengthID, cull.visibleLights[0].light.shadowStrength);
 
 
         shadowBuffer.EndSample("Render Shadow");
