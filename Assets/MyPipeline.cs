@@ -69,23 +69,24 @@ public class MyPipeline : RenderPipeline
 
         CullResults.Cull(ref cullingParameters, context, ref cull);
 
-        // Render Shadow Map
-        RenderShadow(context);
+        // Configure Lights 
+        if (cull.visibleLights.Count > 0)
+        {
+            ConfigureLights();
+            // Render Shadow Map
+            RenderShadow(context);
+        }
+        else
+        {
+            cameraBuffer.SetGlobalVector(visibleLightIndicesOffsetAndCountID, Vector4.zero);
+        }
 
         context.SetupCameraProperties(camera);
 
         // Clear Target
         cameraBuffer.ClearRenderTarget(true, false, Color.clear);
 
-        // Configure Lights 
-        if (cull.visibleLights.Count > 0)
-        {
-            ConfigureLights();
-        }
-        else
-        {
-            cameraBuffer.SetGlobalVector(visibleLightIndicesOffsetAndCountID, Vector4.zero);
-        }
+
 
         cameraBuffer.BeginSample("Render Camera");
         // Set Lights array
@@ -165,9 +166,9 @@ public class MyPipeline : RenderPipeline
         if (SystemInfo.usesReversedZBuffer)
         {
             projMatrix.m20 = -projMatrix.m20;
-			projMatrix.m21 = -projMatrix.m21;
-			projMatrix.m22 = -projMatrix.m22;
-			projMatrix.m23 = -projMatrix.m23;
+            projMatrix.m21 = -projMatrix.m21;
+            projMatrix.m22 = -projMatrix.m22;
+            projMatrix.m23 = -projMatrix.m23;
         }
 
         Matrix4x4 scaleOffset = Matrix4x4.identity;
